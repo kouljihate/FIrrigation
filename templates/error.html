@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-1">{{ code }}</h1>
+  <p class="lead">{{ message }}</p>
+  <a href="{{ url_for('project.index') }}" class="btn btn-success">Back to home</a>
+</div>
+{% endblock %}

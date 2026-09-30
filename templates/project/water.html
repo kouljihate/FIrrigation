@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Step 02 — Water Point & Basin</h1>
+<div class="row g-3">
+  <div class="col-md-6"><div class="card"><div class="card-header">Water points</div>
+    <div class="card-body">
+      {% if water_points %}<ul class="list-group list-group-flush">
+        {% for p in water_points %}<li class="list-group-item">
+        <strong>{{ p.name }}</strong><br>
+        <small class="text-muted">
+          lon={{ "%.6f"|format(p.location.coordinates[0]) }},
+          lat={{ "%.6f"|format(p.location.coordinates[1]) }},
+          elev={{ "%.0f"|format(p.elev_m|default(0)) }} m
+        </small></li>{% endfor %}
+      </ul>{% else %}
+      <div class="alert alert-warning mb-0">No water point. Run Step 01.</div>
+      {% endif %}
+    </div>
+  </div></div>
+  <div class="col-md-6"><div class="card"><div class="card-header">Basins</div>
+    <div class="card-body">
+      {% if basins %}<ul class="list-group list-group-flush">
+        {% for b in basins %}<li class="list-group-item">
+        <strong>{{ b.name }}</strong><br>
+        <small class="text-muted">elev={{ "%.0f"|format(b.elev_m|default(0)) }} m</small>
+        </li>{% endfor %}
+      </ul>{% else %}
+      <div class="alert alert-info mb-0">No basin yet. Add one below.</div>
+      {% endif %}
+    </div>
+  </div></div>
+</div>
+<div class="card mt-4"><div class="card-header">Add / edit a basin</div><div class="card-body">
+<form method="post">
+  <div class="row g-3">
+    <div class="col-md-4"><label class="form-label">Name</label>
+      <input class="form-control" name="name" value="NEW BASIN — 967m" required></div>
+    <div class="col-md-2"><label class="form-label">lon</label>
+      <input class="form-control" name="lon" value="-4.5856651"></div>
+    <div class="col-md-2"><label class="form-label">lat</label>
+      <input class="form-control" name="lat" value="33.8455339"></div>
+    <div class="col-md-2"><label class="form-label">elev (m)</label>
+      <input class="form-control" name="elev" value="967"></div>
+    <div class="col-md-2"><label class="form-label">side (m)</label>
+      <input class="form-control" name="size" value="30"></div>
+  </div>
+  <button class="btn btn-success mt-3" type="submit">Save basin</button>
+</form>
+</div></div>
+{% endblock %}

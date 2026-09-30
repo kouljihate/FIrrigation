@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Step 01 — Initialize Project</h1>
+<div class="card mb-4"><div class="card-body">
+<form method="post" enctype="multipart/form-data">
+  <div class="mb-3">
+    <label class="form-label">KML file</label>
+    <input type="file" name="kml" accept=".kml" class="form-control" required>
+  </div>
+  <button type="submit" name="action" value="preview" class="btn btn-outline-secondary">Preview only</button>
+  <button type="submit" name="action" value="import" class="btn btn-success">Import to database</button>
+</form>
+</div></div>
+{% if preview %}
+<div class="card">
+  <div class="card-header">Preview — {{ preview_count }} placemarks</div>
+  <div class="card-body" style="max-height:500px; overflow:auto;">
+    <table class="table table-sm">
+      <thead><tr><th>Name</th><th>Kind</th><th>Vertices</th></tr></thead>
+      <tbody>{% for r in preview %}
+      <tr><td>{{ r.name }}</td><td>{{ r.kind }}</td><td>{{ r.vertices }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

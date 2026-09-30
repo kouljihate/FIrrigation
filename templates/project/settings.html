@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Settings</h1>
+<div class="row g-3">
+  <div class="col-md-4"><div class="card"><div class="card-header">MongoDB</div>
+    <div class="card-body">
+      <p>Connection:
+        {% if mongo_ok %}<span class="badge bg-success">OK</span>
+        {% else %}<span class="badge bg-danger">FAILED</span>{% endif %}
+      </p>
+      <pre class="small">{{ summary }}</pre>
+    </div>
+  </div></div>
+  <div class="col-md-8"><div class="card"><div class="card-header">Revisions</div>
+    <div class="card-body" style="max-height:300px; overflow:auto;">
+      {% if revisions %}
+      <table class="table table-sm">
+        <thead><tr><th>#</th><th>Step</th><th>Note</th><th>When</th></tr></thead>
+        <tbody>{% for r in revisions %}
+        <tr><td>{{ r.revision_id }}</td><td>{{ r.step }}</td>
+            <td>{{ r.note }}</td><td>{{ r.created_at }}</td></tr>
+        {% endfor %}</tbody>
+      </table>
+      {% else %}<em>No revisions yet.</em>{% endif %}
+    </div>
+  </div></div>
+</div>
+<div class="card mt-4 border-danger">
+  <div class="card-header text-danger">Danger zone</div>
+  <div class="card-body">
+    <p class="text-muted">These actions cannot be undone.</p>
+    <form method="post" class="d-inline">
+      <button name="action" value="wipe_rows_trees" class="btn btn-outline-warning">Wipe rows + trees</button>
+    </form>
+    <form method="post" class="d-inline" onsubmit="return confirm('Delete EVERYTHING for this project?');">
+      <button name="action" value="wipe_all" class="btn btn-outline-danger">Wipe everything</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

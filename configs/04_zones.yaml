@@ -1,0 +1,5 @@
+step: "04_zones"
+n_per_sector: 3
+offset_inward_m: 0
+tolerance_pct: 1.0
+method: "equal_area_bands"

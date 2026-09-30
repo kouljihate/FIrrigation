@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="home-wrapper">
+
+ 
+  <div class="home-cards">
+
+    {# ---------- Card 1: new project from KML ---------- #}
+    <div class="card home-card">
+      <div class="card-header bi">
+        <span class="en">① Start a new project from a KML file</span>
+        <span class="ar">① ابدأ مشروعًا جديدًا من ملف KML</span>
+      </div>
+      <div class="card-body">
+        <p class="bi">
+          <span class="en">
+            Enter a project ID, then upload the KML that contains
+            the property boundary (P1) and the water point.
+          </span>
+          <span class="ar">
+            أدخل معرف المشروع ثم ارفع ملف KML الذي يحتوي على
+            حدود الملك (P1) ونقطة المياه.
+          </span>
+        </p>
+
+        <form method="post" action="{{ url_for('home.new_project') }}">
+          <div class="mb-3">
+            <label class="form-label bi">
+              <span class="en">Project ID</span>
+              <span class="ar">معرف المشروع</span>
+            </label>
+            <input class="form-control" name="project_id"
+                   placeholder="farm_v1" required>
+          </div>
+          <button class="btn btn-primary btn-stack w-100" type="submit">
+            <span class="ar">إنشاء ورفع ملف KML</span>
+            <span class="en">Create &amp; upload KML</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {# ---------- Card 2: open existing project ---------- #}
+    <div class="card home-card">
+      <div class="card-header bi">
+        <span class="en">② Open an existing project</span>
+        <span class="ar">② افتح مشروعًا موجودًا</span>
+      </div>
+      <div class="card-body">
+        {% if projects %}
+          <ul class="list-group list-group-flush">
+            {% for p in projects %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>{{ p.name or p.project_id }}</strong><br>
+                  <small class="text-muted">{{ p.project_id }}</small>
+                </div>
+                <div class="d-flex gap-2">
+                  <a class="btn btn-sm btn-success btn-stack"
+                     href="{{ url_for('home.open_project', pid=p.project_id) }}">
+                    <span class="ar">فتح</span>
+                    <span class="en">Open</span>
+                  </a>
+                  <form method="post"
+                        action="{{ url_for('home.delete_project', pid=p.project_id) }}"
+                        onsubmit="return confirm('Delete project {{ p.project_id }}?');">
+                    <button class="btn btn-sm btn-outline-danger">✕</button>
+                  </form>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="alert alert-info bi mb-0">
+            <span class="en">No saved projects yet.</span>
+            <span class="ar">لا توجد مشاريع محفوظة بعد.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

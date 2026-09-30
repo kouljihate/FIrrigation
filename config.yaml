@@ -1,0 +1,25 @@
+# Global configuration for the Farm Irrigation Workbench
+
+app:
+  title: "Farm Irrigation Workbench"
+  version: "0.1.0"
+  layout: "wide"
+
+mongodb:
+  host: "localhost"
+  port: 27017
+  database: "farm_irrigation"
+
+paths:
+  imports: "imports"
+  exports: "exports"
+  configs: "configs"
+
+defaults:
+  project_name: "farm_v1"
+  row_spacing_m: 4.0
+  tree_spacing_m: 4.0
+  first_row_offset_m: 2.0
+  pipe_main_diameter_mm: 75
+  pipe_submain_diameter_mm: 32
+  pipe_zone_diameter_mm: 32

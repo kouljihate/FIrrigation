@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Manifolds</h1>
+<form method="post" class="mb-4">
+  <button class="btn btn-success" type="submit">Build manifolds</button>
+</form>
+{% if manifolds %}
+<table class="table table-striped">
+  <thead><tr><th>Name</th><th>Zone</th><th>Length (m)</th></tr></thead>
+  <tbody>{% for m in manifolds %}
+  <tr><td>{{ m.name }}</td><td>{{ m.zone_name }}</td><td>{{ "%.1f"|format(m.length_m) }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% else %}
+<div class="alert alert-info">No manifolds yet.</div>
+{% endif %}
+{% endblock %}

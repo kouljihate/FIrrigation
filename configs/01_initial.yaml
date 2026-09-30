@@ -1,0 +1,7 @@
+step: "01_initial"
+description: "Initial KML import"
+input:
+  kml_path: "imports/dhar_initial_with_elevation_new_basin.kml"
+import:
+  overwrite_existing: true
+  keep_import_file: true

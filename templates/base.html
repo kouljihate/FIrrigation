@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_title }}{% endblock %}</title>
+
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/journal/bootstrap.min.css">
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ===================== FIXED HEADER ===================== -->
+<header class="app-header">
+  <div class="container-fluid h-100">
+    <div class="d-flex align-items-center justify-content-between h-100">
+
+      <!-- left: English title -->
+      <div class="d-flex align-items-center gap-3">
+        <h1 class="app-title en" href="{{ url_for('home.home') }}">
+          🌱 {{ app_title }}
+        </h1>
+      </div>
+
+      <!-- right: Arabic title + icons -->
+      <div class="d-flex align-items-center gap-2">
+        <h1 class="app-title ar fs-2" href="{{ url_for('home.home') }}">
+         🌱 منصة الري الزراعي 
+        </h1>
+      </div>
+
+    </div>
+  </div>
+</header>
+
+<!-- ===================== SCROLLABLE MAIN ===================== -->
+<main class="app-main">
+  {% include '_section_nav.html' %}
+
+  <div class="container-fluid py-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ 'danger' if cat == 'error' else 'success' }} alert-dismissible fade show">
+            {{ msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<!-- ===================== FIXED FOOTER ===================== -->
+<footer class="app-footer">
+  <div class="container-fluid">
+    <div class="row align-items-center">
+
+      <!-- column 1: English -->
+      <div class="col-md-4 text-start">
+        <div class="en small">
+          DB {{ db_version }} - {{ db_connection }} - {{ db_driver }}
+        </div>
+      </div>
+
+      <!-- column 2: Arabic -->
+      <div class="col-md-4 text-center">
+
+           <code>{{ project_id }}</code>
+
+      </div>
+
+      <!-- column 3: version + counters -->
+      <div class="col-md-4 text-end">
+        <div class="small">
+          <span class="badge bg-primary me-2">v{{ app_version }}</span>
+        
+        </div>
+      </div>
+
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

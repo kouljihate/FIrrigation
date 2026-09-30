@@ -1,0 +1,7 @@
+step: "08_rows"
+row_direction: "perpendicular_to_fall"
+fixed_angle_deg: 90
+spacing_m: 4.0
+first_row_offset_m: 2.0
+span: "edge_to_edge"
+trim_to_zone: true

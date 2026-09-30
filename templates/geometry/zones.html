@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Zones</h1>
+<div class="card mb-4"><div class="card-body">
+<form method="post" class="row g-3 align-items-end">
+  <div class="col-md-3"><label class="form-label">Zones per sector</label>
+    <input type="number" name="n_parts" value="3" min="2" max="10" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">Inward offset (m)</label>
+    <input type="number" name="offset" value="0" step="0.1" class="form-control"></div>
+  <div class="col-md-3"><button class="btn btn-success" type="submit">Build zones</button></div>
+</form>
+</div></div>
+{% if zones %}
+<table class="table table-striped">
+  <thead><tr><th>Name</th><th>Sector</th><th>Area (m²)</th></tr></thead>
+  <tbody>{% for z in zones %}
+  <tr><td>{{ z.name }}</td><td>{{ z.sector }}</td><td>{{ z.area_m2 }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+<p class="text-muted">{{ zones|length }} zones total.</p>
+{% else %}
+<div class="alert alert-info">No zones yet.</div>
+{% endif %}
+{% endblock %}

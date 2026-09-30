@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Sectors</h1>
+{% if sectors %}
+<table class="table table-striped">
+  <thead><tr><th>Code</th><th>Vertices</th><th>Area (m²)</th></tr></thead>
+  <tbody>{% for s in sectors %}
+  <tr><td>{{ s.code }}</td><td>{{ s.vertices }}</td><td>{{ s.area_m2 }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+<p class="text-muted">To change sectors, re-run Step 01 with a new KML.</p>
+{% else %}
+<div class="alert alert-warning">No sectors found. Run Step 01 first.</div>
+{% endif %}
+{% endblock %}

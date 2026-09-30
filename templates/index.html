@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  /* =========================================================
+     OVERVIEW — 8 metric cards in one horizontal row on desktop
+     Fully responsive: 8 → 6 → 4 → 2 cards per row
+     ========================================================= */
+
+  .overview-wrapper {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .overview-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+    font-weight: 700;
+    color: #2D6A4F;
+    margin-bottom: 1rem;
+  }
+
+  /* -------- THE GRID -------- */
+  .overview-cards {
+    display: grid !important;
+    /* 8 equal columns on desktop; auto-fit shrinks gracefully */
+    grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    width: 100% !important;
+    margin: 0 0 1.25rem 0 !important;
+    padding: 0 !important;
+    list-style: none;
+  }
+
+  /* Card itself */
+  .overview-cards > .overview-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #e3e6ea;
+    border-radius: 10px;
+    padding: 0.85rem 0.5rem;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    transition: transform 0.12s, box-shadow 0.12s;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .overview-cards > .overview-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(45,106,79,0.12);
+  }
+
+  .overview-card-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .overview-card-value {
+    font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+    font-weight: 700;
+    color: #2D6A4F;
+    line-height: 1.1;
+  }
+
+  .overview-card-labels {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    margin-top: 0.3rem;
+    font-size: 0.72rem;
+    width: 100%;
+  }
+  .overview-card-labels .en {
+    color: #495057;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .overview-card-labels .ar {
+    color: #6c757d;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* -------- RESPONSIVE BREAKPOINTS -------- */
+  /* < 1400px  →  6 cards per row */
+  @media (max-width: 1400px) {
+    .overview-cards {
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+  }
+  /* < 1100px  →  4 cards per row */
+  @media (max-width: 1100px) {
+    .overview-cards {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+  }
+  /* < 768px   →  3 cards per row */
+  @media (max-width: 768px) {
+    .overview-cards {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+  }
+  /* < 500px   →  2 cards per row */
+  @media (max-width: 500px) {
+    .overview-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    .overview-title {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+  }
+
+  /* -------- Actions row (Quick + Exports) -------- */
+  .overview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  @media (min-width: 768px) {
+    .overview-actions {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+  .overview-action-card .list-group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .overview-action-card .list-group-item .ar {
+    text-align: right;
+    color: #6c757d;
+    font-size: 0.9em;
+  }
+
+  /* -------- Alert -------- */
+  .overview-alert {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .overview-alert .en,
+  .overview-alert .ar {
+    display: block;
+  }
+</style>
+
+<div class="overview-wrapper">
+
+  <h1 class="overview-title">
+    <span class="en">Project Overview</span>
+    <span class="ar">نظرة عامة على المشروع</span>
+  </h1>
+
+  <div class="overview-cards">
+    {% for  label_ar, label_en, key, icon in [
+        ('Sectors',   'القطاعات',    'sectors',   '📐'),
+        ('Zones',     'المناطق',     'zones',     '🔷'),
+        ('Valves',    'الصمامات',    'valves',    '🔴'),
+        ('Pipes',     'الأنابيب',    'pipes',     '〰️'),
+        ('Rows',      'الصفوف',      'rows',      '➖'),
+        ('Trees',     'الأشجار',     'trees',     '🌳'),
+        ('Driplines', 'خطوط التنقيط', 'driplines', '💧'),
+        ('Revisions', 'المراجعات',   'revisions', '📜'),
+    ] %}
+      <div class="overview-card">
+        <div class="overview-card-icon">{{ icon }}</div>
+        <div class="overview-card-value">{{ summary.get(key, 0) }}</div>
+        <div class="overview-card-labels">
+          <span class="ar">{{ label_en }}</span>
+          <span class="en">{{ label_ar }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="alert alert-info overview-alert">
+    <div class="en">
+      <strong>Workflow:</strong> initialize the project (Step 01), then run
+      each step in order — Geometry → Hydrology → Field → Export.
+    </div>
+    <div class="ar">
+      <strong>سير العمل:</strong> قم بتهيئة المشروع (الخطوة 01) ثم نفذ كل
+      خطوة بالترتيب — الهندسة ← الهيدرولوجيا ← الحقل ← التصدير.
+    </div>
+  </div>
+
+  <div class="overview-actions">
+
+    <div class="card overview-action-card">
+      <div class="card-header bi">
+        <span class="en">Quick actions</span>
+        <span class="ar">إجراءات سريعة</span>
+      </div>
+      <div class="list-group list-group-flush">
+        <a href="{{ url_for('project.initial') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">📥 Upload initial KML</span>
+          <span class="ar">📥 رفع ملف KML الأولي</span>
+        </a>
+        <a href="{{ url_for('geometry.zones') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">🔷 Build zones</span>
+          <span class="ar">🔷 إنشاء المناطق</span>
+        </a>
+        <a href="{{ url_for('field.rows') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">➖ Build rows</span>
+          <span class="ar">➖ إنشاء الصفوف</span>
+        </a>
+        <a href="{{ url_for('field.trees') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">🌳 Place trees</span>
+          <span class="ar">🌳 زرع الأشجار</span>
+        </a>
+        <a href="{{ url_for('map_view.map_page') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">🗺 Open map</span>
+          <span class="ar">🗺 فتح الخريطة</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="card overview-action-card">
+      <div class="card-header bi">
+        <span class="en">Exports</span>
+        <span class="ar">التصدير</span>
+      </div>
+      <div class="list-group list-group-flush">
+        <a href="{{ url_for('export.kml') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">📄 Download KML</span>
+          <span class="ar">📄 تنزيل KML</span>
+        </a>
+        <a href="{{ url_for('export.dxf') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">📐 Download DXF (AutoCAD)</span>
+          <span class="ar">📐 تنزيل DXF (أوتوكاد)</span>
+        </a>
+        <a href="{{ url_for('export.geojson') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">🌐 Download GeoJSON</span>
+          <span class="ar">🌐 تنزيل GeoJSON</span>
+        </a>
+        <a href="{{ url_for('export.trees_csv') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">📊 Download Trees CSV</span>
+          <span class="ar">📊 تنزيل قائمة الأشجار CSV</span>
+        </a>
+        <a href="{{ url_for('export.bom') }}" class="list-group-item list-group-item-action bi">
+          <span class="en">📦 Bill of Materials</span>
+          <span class="ar">📦 قائمة المواد</span>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

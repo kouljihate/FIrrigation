@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Map · {{ app_title }}{% endblock %}
+{% block head %}
+<style>
+  #map { height: calc(100vh - 220px); min-height: 500px; border-radius: 6px; }
+  .layer-toggles { max-height: 60vh; overflow-y: auto; }
+</style>
+{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">🗺 Map — <code>{{ project_id }}</code></h1>
+<div class="row g-3">
+  <div class="col-md-3">
+    <div class="card"><div class="card-header">Layers</div>
+      <div class="card-body layer-toggles" id="layer-toggles"></div>
+    </div>
+    <div class="card mt-3"><div class="card-body">
+      <button id="fit-btn" class="btn btn-sm btn-success w-100">Fit to property</button>
+    </div></div>
+  </div>
+  <div class="col-md-9"><div id="map"></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.FARM_API = {
+    geojson: "{{ url_for('api.geojson') }}",
+    bounds:  "{{ url_for('api.bounds') }}",
+  };
+</script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+{% endblock %}

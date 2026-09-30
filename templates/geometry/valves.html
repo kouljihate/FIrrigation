@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Valves</h1>
+<form method="post" class="mb-4">
+  <button class="btn btn-success" type="submit">Generate valves</button>
+</form>
+<div class="row g-3">
+  <div class="col-md-4"><div class="card"><div class="card-header">Main valves (MV)</div>
+    <ul class="list-group list-group-flush">
+    {% for v in mvs %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ v.name }}</span>
+        <span class="text-muted small">Ø{{ v.diameter_mm }} mm</span>
+      </li>
+    {% else %}<li class="list-group-item"><em>None yet.</em></li>{% endfor %}
+    </ul>
+  </div></div>
+  <div class="col-md-8"><div class="card">
+    <div class="card-header">Zone valves (ZV) — {{ zvs|length }} total</div>
+    <div class="card-body" style="max-height:400px; overflow:auto;">
+      <div class="row row-cols-3 g-2">
+      {% for v in zvs %}
+        <div class="col"><span class="badge bg-success w-100">{{ v.name }}</span></div>
+      {% else %}<div class="col-12"><em>None yet.</em></div>{% endfor %}
+      </div>
+    </div>
+  </div></div>
+</div>
+{% endblock %}

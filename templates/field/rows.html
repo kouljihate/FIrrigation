@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Rows</h1>
+<div class="card mb-4"><div class="card-body">
+<form method="post" class="row g-3 align-items-end">
+  <div class="col-md-3"><label class="form-label">Row spacing (m)</label>
+    <input type="number" name="spacing" value="4" step="0.1" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">First row offset (m)</label>
+    <input type="number" name="offset" value="2" step="0.1" class="form-control"></div>
+  <div class="col-md-3"><button class="btn btn-success" type="submit">Build rows</button></div>
+</form>
+</div></div>
+{% if rows %}
+<p class="text-muted">{{ rows|length }} rows total.</p>
+<table class="table table-sm table-striped">
+  <thead><tr><th>Name</th><th>Zone</th><th>Length (m)</th></tr></thead>
+  <tbody>{% for r in rows[:200] %}
+  <tr><td>{{ r.name }}</td><td>{{ r.zone_name }}</td><td>{{ "%.1f"|format(r.length_m) }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% if rows|length > 200 %}<p class="text-muted">Showing first 200.</p>{% endif %}
+{% else %}
+<div class="alert alert-info">No rows yet.</div>
+{% endif %}
+{% endblock %}

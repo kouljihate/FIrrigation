@@ -1,0 +1,6 @@
+step: "09_trees"
+spacing_m: 4.0
+center_on_row: true
+species_ratio:
+  olive: 0.80
+  fig: 0.20

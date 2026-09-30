@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Driplines</h1>
+<div class="card mb-4"><div class="card-body">
+<form method="post" class="row g-3 align-items-end">
+  <div class="col-md-3"><label class="form-label">Emitter spacing (m)</label>
+    <input type="number" name="emitter_spacing" value="0.5" step="0.1" class="form-control"></div>
+  <div class="col-md-3"><button class="btn btn-success" type="submit">Build driplines</button></div>
+</form>
+</div></div>
+{% if driplines %}
+<p class="text-muted">{{ driplines|length }} driplines total.</p>
+<table class="table table-sm table-striped">
+  <thead><tr><th>Name</th><th>Row</th><th>Length (m)</th><th>Emitters</th></tr></thead>
+  <tbody>{% for d in driplines[:200] %}
+  <tr><td>{{ d.name }}</td><td>{{ d.row_name }}</td>
+      <td>{{ "%.1f"|format(d.length_m) }}</td><td>{{ d.emitter_count }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% else %}
+<div class="alert alert-info">No driplines yet.</div>
+{% endif %}
+{% endblock %}

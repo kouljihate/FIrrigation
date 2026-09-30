@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-4">Bill of Materials</h1>
+<form method="post" class="mb-3">
+  <button class="btn btn-success" type="submit">Recompute BOM</button>
+</form>
+{% if rows %}
+<table class="table table-striped">
+  <thead><tr><th>Category</th><th>Description</th><th>Spec</th><th>Unit</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
+  <tbody>{% for r in rows %}
+  <tr>
+    <td>{{ r.category }}</td><td>{{ r.description }}</td><td>{{ r.spec }}</td>
+    <td>{{ r.unit }}</td><td>{{ "%.1f"|format(r.quantity) }}</td>
+    <td>{{ "%.2f"|format(r.unit_price) }}</td>
+    <td>{{ "%.2f"|format(r.quantity * r.unit_price) }}</td>
+  </tr>
+  {% endfor %}</tbody>
+</table>
+<h4>Estimated total: <strong>{{ "%.2f"|format(total) }}</strong></h4>
+{% else %}
+<div class="alert alert-info">Nothing to compute yet. Run the previous steps.</div>
+{% endif %}
+{% endblock %}
