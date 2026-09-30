@@ -17,6 +17,12 @@ def create_app() -> Flask:
     from db.connection import init_app as init_db
     init_db(app)
 
+    from routes.auth import init_auth
+    init_auth(app)
+
+    from core.async_tasks import init_task_queue
+    init_task_queue(max_workers=2)
+
     # ---- blueprints ----
     from routes.home import bp as home_bp
     from routes.project import bp as project_bp
@@ -27,6 +33,7 @@ def create_app() -> Flask:
     from routes.api import bp as api_bp
     from routes.map_view import bp as map_bp
     from routes.logs import bp as logs_bp
+    from routes.auth import bp as auth_bp
 
     app.register_blueprint(home_bp)
     app.register_blueprint(project_bp)
@@ -34,9 +41,10 @@ def create_app() -> Flask:
     app.register_blueprint(hydrology_bp)
     app.register_blueprint(field_bp)
     app.register_blueprint(export_bp)
-    app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(api_bp)
     app.register_blueprint(map_bp)
     app.register_blueprint(logs_bp)
+    app.register_blueprint(auth_bp)
 
     # ---- session defaults ----
     @app.before_request

@@ -4,16 +4,22 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
+from flask import jsonify
+from db.connection import get_db
+
 import numpy as np
 from flask import (
     Blueprint, current_app, flash, redirect, render_template,
     request, session, url_for,
 )
 from shapely.geometry import Polygon
+from shapely.geometry import LineString
 from shapely.validation import make_valid
 
 from core.geometry import clean_polygon, fall_direction
 from core.valve_rules import MV_GROUPS, zv_name
+from core.validation import validate_form, SectorSave, ZoneBuild
+from core.async_tasks import submit_async_task, get_task_status
 from db import queries, repository
 from db.connection import get_db
 
@@ -24,33 +30,116 @@ bp = Blueprint("geometry", __name__, url_prefix="/geometry")
 # ---------------------------------------------------------------- sectors
 @bp.route("/sectors")
 def sectors():
-    pid = session.get("project_id", "farm_v1")
+    pid = session.get("project_id", "")
+    if not pid:
+        return redirect(url_for("home.home"))
+
     rows = queries.get_sectors(pid)
-    table = []
+    sectors = []
     for s in rows:
         ring = s["geom"]["coordinates"][0]
-        table.append({
-            "code": s.get("sector_code") or s["name"],
+        sectors.append({
+            "code":  s.get("sector_code") or s["name"],
+            "name":  s["name"],
+            "coords_text": "\n".join(f"{x:.7f},{y:.7f}" for x, y in ring),
             "vertices": len(ring),
-            "area_m2": round(s.get("area_m2", 0), 1),
+            "area_m2":  s.get("area_m2", 0),
         })
-    return render_template("geometry/sectors.html", sectors=table)
+    return render_template("geometry/sectors.html", sectors=sectors)
 
+
+@bp.route("/sectors/save", methods=["POST"])
+@validate_form(SectorSave)
+def save_sector(data: SectorSave):
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+
+    code = data.code
+    coords_text = data.coords
+
+    # parse lines "lon,lat" (or "lon,lat,ele")
+    ring = []
+    for line in coords_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.split(",")]
+        lon = float(parts[0])
+        lat = float(parts[1])
+        ring.append([lon, lat])
+
+    if len(ring) < 3:
+        return jsonify({"ok": False, "error": "need at least 3 points"}), 400
+
+    # auto-close ring
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+
+    # compute area via lon/lat -> meters approximation
+    area_m2 = _ring_area_m2(ring)
+
+    revision = repository.new_revision(pid, "03_sectors_edit",
+                                       f"Edit {code}")
+    now = datetime.now(timezone.utc)
+
+    repository.upsert("sectors",
+        {"project_id": pid, "sector_code": code},
+        {
+            "project_id": pid,
+            "name": code,
+            "sector_code": code,
+            "geom": {"type": "Polygon", "coordinates": [ring]},
+            "area_m2": area_m2,
+            "revision_id": revision,
+            "updated_at": now,
+        })
+
+    return jsonify({
+        "ok": True,
+        "vertices": len(ring) - 1,   # excluding closing duplicate
+        "area_m2": area_m2,
+        "area_ha": area_m2 / 10000.0,
+    })
+
+
+def _ring_area_m2(ring):
+    """Approximate polygon area in m² using lat-corrected shoelace."""
+    if len(ring) < 4:
+        return 0.0
+    lat0 = sum(p[1] for p in ring) / len(ring)
+    # scale factors (m per degree) at this latitude
+    import math
+    R = 6378137.0
+    m_per_deg_lat = math.pi * R / 180.0
+    m_per_deg_lon = m_per_deg_lat * math.cos(math.radians(lat0))
+
+    s = 0.0
+    for i in range(len(ring) - 1):
+        x1, y1 = ring[i][0] * m_per_deg_lon, ring[i][1] * m_per_deg_lat
+        x2, y2 = ring[i+1][0] * m_per_deg_lon, ring[i+1][1] * m_per_deg_lat
+        s += x1 * y2 - x2 * y1
+    return abs(s) / 2.0
 
 # ---------------------------------------------------------------- zones
 @bp.route("/zones", methods=["GET", "POST"])
-def zones():
+@validate_form(ZoneBuild)
+def zones(data: ZoneBuild | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            n_parts = int(request.form.get("n_parts", 3))
-            offset = float(request.form.get("offset", 0))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("geometry.zones"))
-
-        _build_zones(pid, n_parts, offset)
+        assert data is not None
+        # Check if async mode requested
+        if request.form.get("async") == "1":
+            task_id = submit_async_task(
+                "build_zones",
+                _do_build_zones,
+                pid, data.n_parts, data.offset, data.split_mode,
+                project_id=pid,
+            )
+            return jsonify({"ok": True, "task_id": task_id, "async": True})
+        
+        _do_build_zones(pid, data.n_parts, data.offset, data.split_mode)
         flash("Zones built.", "success")
         return redirect(url_for("geometry.zones"))
 
@@ -58,22 +147,22 @@ def zones():
     table = []
     for z in rows:
         table.append({
-            "name": z["name"],
-            "sector": z.get("sector_code", ""),
-            "area_m2": round(z.get("area_m2", 0), 1),
+            "name":     z["name"],
+            "sector":   z.get("sector_code", ""),
+            "area_m2":  round(z.get("area_m2", 0), 1),
         })
     return render_template("geometry/zones.html", zones=table)
 
-
-def _build_zones(project_id: str, n_parts: int, offset: float) -> None:
+def _do_build_zones(project_id: str, n_parts: int, offset: float,
+                    split_mode: str = "contour") -> int:
     sectors = queries.get_sectors(project_id)
     if not sectors:
-        flash("No sectors found. Run Step 01 first.", "error")
-        return
+        return 0
 
-    db = get_db()
-    revision = repository.new_revision(project_id, "04_zones",
-                                       f"Build {n_parts} zones/sector")
+    revision = repository.new_revision(
+        project_id, "04_zones",
+        f"Build {n_parts} zones/sector — split={split_mode}"
+    )
     repository.clear_step(project_id, "zones")
 
     now = datetime.now(timezone.utc)
@@ -88,96 +177,268 @@ def _build_zones(project_id: str, n_parts: int, offset: float) -> None:
         lon0 = sum(p[0] for p in pts_ll) / len(pts_ll)
         lat0 = sum(p[1] for p in pts_ll) / len(pts_ll)
 
-        def to_local(lon, lat):
-            x = math.radians(lon - lon0) * R * math.cos(math.radians(lat0))
-            y = math.radians(lat - lat0) * R
+        def to_local(lon, lat, _lon0=lon0, _lat0=lat0):
+            x = math.radians(lon - _lon0) * R * math.cos(math.radians(_lat0))
+            y = math.radians(lat - _lat0) * R
             return x, y
 
         pts_xy = [to_local(p[0], p[1]) for p in pts_ll]
         poly = clean_polygon(Polygon(pts_xy))
 
-        ux, uy = fall_direction(poly, [0.0] * len(pts_xy))
-
-        theta = -math.pi / 2 - math.atan2(uy, ux)
-        c, s_ = math.cos(theta), math.sin(theta)
-
-        def rot(p):
-            return (c * p[0] - s_ * p[1], s_ * p[0] + c * p[1])
-
-        def rot_inv(p):
-            return (c * p[0] + s_ * p[1], -s_ * p[0] + c * p[1])
-
-        rot_poly = Polygon([rot(p) for p in poly.exterior.coords])
-        if not rot_poly.is_valid:
-            rot_poly = make_valid(rot_poly)
         if offset > 0:
-            rot_poly = rot_poly.buffer(-offset, join_style=2)
-            if rot_poly.is_empty:
+            shrunk = poly.buffer(-offset, join_style=2)
+            if not shrunk.is_empty:
+                if shrunk.geom_type == "MultiPolygon":
+                    shrunk = max(shrunk.geoms, key=lambda g: g.area)
+                if shrunk.geom_type == "Polygon":
+                    poly = shrunk
+
+        # --- dispatch by split mode ---
+        if split_mode == "contour":
+            zones_xy = _split_contour(poly, n_parts)
+        elif split_mode == "fan":
+            zones_xy = _split_fan(poly, n_parts)
+        elif split_mode == "strip":
+            zones_xy = _split_strip(poly, n_parts)
+        else:
+            zones_xy = _split_contour(poly, n_parts)
+
+        def to_lonlat(x, y, _lon0=lon0, _lat0=lat0):
+            lon = _lon0 + math.degrees(x / (R * math.cos(math.radians(_lat0))))
+            lat = _lat0 + math.degrees(y / R)
+            return lon, lat
+
+        for j, z in enumerate(zones_xy, start=1):
+            if z is None or z.is_empty:
                 continue
-            if rot_poly.geom_type == "MultiPolygon":
-                rot_poly = max(rot_poly.geoms, key=lambda g: g.area)
-
-        minx, miny, maxx, maxy = rot_poly.bounds
-        target = rot_poly.area / n_parts
-
-        def area_below(ycut):
-            box = Polygon([(minx - 50, miny - 50),
-                           (maxx + 50, miny - 50),
-                           (maxx + 50, ycut), (minx - 50, ycut)])
-            return rot_poly.intersection(box).area
-
-        cuts = []
-        for k in range(1, n_parts):
-            lo, hi = miny, maxy
-            tgt = target * k
-            for _ in range(60):
-                mid = (lo + hi) / 2
-                if area_below(mid) < tgt:
-                    lo = mid
-                else:
-                    hi = mid
-            cuts.append((lo + hi) / 2)
-        cuts.sort()
-
-        edges = [miny - 50] + cuts + [maxy + 50]
-        for j in range(n_parts):
-            y_lo = edges[n_parts - j - 1]
-            y_hi = edges[n_parts - j]
-            box = Polygon([(minx - 50, y_lo), (maxx + 50, y_lo),
-                           (maxx + 50, y_hi), (minx - 50, y_hi)])
-            zone = rot_poly.intersection(box)
-            if zone.is_empty:
-                continue
-            if zone.geom_type == "MultiPolygon":
-                zone = max(zone.geoms, key=lambda g: g.area)
-            if zone.geom_type != "Polygon":
+            if z.geom_type == "MultiPolygon":
+                z = max(z.geoms, key=lambda g: g.area)
+            if z.geom_type != "Polygon":
                 continue
 
-            back_pts = [rot_inv(p) for p in zone.exterior.coords]
-
-            def to_lonlat(x, y):
-                lon = lon0 + math.degrees(x / (R * math.cos(math.radians(lat0))))
-                lat = lat0 + math.degrees(y / R)
-                return lon, lat
-
-            ring_ll = [list(to_lonlat(x, y)) for x, y in back_pts]
+            ring_ll = [list(to_lonlat(x, y)) for x, y in z.exterior.coords]
             if ring_ll[0] != ring_ll[-1]:
                 ring_ll.append(ring_ll[0])
 
             geom = {"type": "Polygon", "coordinates": [ring_ll]}
-            zname = f"{code}-Z{j + 1}"
+            zname = f"{code}-Z{j}"
             repository.upsert("zones",
                 {"project_id": project_id, "name": zname},
                 {"project_id": project_id, "name": zname,
-                 "sector_code": code, "zone_index": j + 1,
-                 "geom": geom, "area_m2": zone.area,
-                 "fall_dir_deg": math.degrees(math.atan2(uy, ux)),
+                 "sector_code": code, "zone_index": j,
+                 "geom": geom, "area_m2": z.area,
+                 "split_mode": split_mode,
                  "revision_id": revision,
                  "created_at": now, "updated_at": now})
             total += 1
 
-    current_app.logger.info("Built %d zones for %s", total, project_id)
+    return total
 
+
+# ---------------------------------------------------------------- strategies
+
+def _split_contour(poly: Polygon, n_parts: int):
+    """
+    Equal-area bands perpendicular to the fall line.
+    Since we don't carry elevations here, fall direction defaults to
+    'largest variance axis' — a stable proxy.
+    """
+    coords = list(poly.exterior.coords)
+    # estimate principal axis via covariance
+    xs = [p[0] for p in coords]
+    ys = [p[1] for p in coords]
+    mx = sum(xs) / len(xs)
+    my = sum(ys) / len(ys)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    sxy = sum((x - mx) * (y - my) for x, y in coords)
+    # principal direction angle (largest variance = the long axis)
+    theta = 0.5 * math.atan2(2 * sxy, sxx - syy)
+    # fall direction: perpendicular to long axis
+    fall_ux = -math.sin(theta)
+    fall_uy = math.cos(theta)
+
+    return _split_by_direction(poly, n_parts, fall_ux, fall_uy)
+
+
+def _split_fan(poly: Polygon, n_parts: int):
+    """
+    Equal-area fan: rays radiating from the centroid.
+    Zones look like pie slices. Uses area sweep.
+    """
+    cx, cy = poly.centroid.x, poly.centroid.y
+    # angles of each exterior vertex around the centroid
+    coords = list(poly.exterior.coords)[:-1]
+    angles = []
+    for x, y in coords:
+        a = math.atan2(y - cy, x - cx)
+        if a < 0:
+            a += 2 * math.pi
+        angles.append(a)
+
+    # target area per zone
+    target = poly.area / n_parts
+
+    # We'll sweep the full circle and find angles that accumulate `target`.
+    # Simplify: sample 720 angles, integrate area by triangulating
+    # with the centroid.
+    samples = 720
+    ang = [2 * math.pi * i / samples for i in range(samples + 1)]
+    cum_area = [0.0] * (samples + 1)
+    for i in range(samples):
+        a0, a1 = ang[i], ang[i + 1]
+        # tiny sector from centroid at [a0, a1]
+        # approximate: use triangle (centroid, edge0, edge1) where edge
+        # points are intersections of ray with polygon — but that's heavy.
+        # Simpler: area of circle sector capped at a small angle,
+        # scaled by whether the ray direction is inside the polygon.
+        # Use radial intersection with the polygon.
+        r0 = _ray_polygon_distance(poly, cx, cy, a0)
+        r1 = _ray_polygon_distance(poly, cx, cy, a1)
+        area = 0.5 * r0 * r1 * math.sin(a1 - a0) if a1 > a0 else 0
+        cum_area[i + 1] = cum_area[i] + area
+
+    total = cum_area[-1] or poly.area
+    cut_angles = []
+    for k in range(1, n_parts):
+        want = total * k / n_parts
+        # find index
+        idx = 0
+        for i in range(len(cum_area)):
+            if cum_area[i] >= want:
+                idx = i
+                break
+        cut_angles.append(ang[idx])
+
+    # build wedge polygons
+    zones = []
+    boundaries = [0.0] + cut_angles + [2 * math.pi]
+    for i in range(n_parts):
+        a0 = boundaries[i]
+        a1 = boundaries[i + 1]
+        # sample boundary points
+        steps = max(2, int((a1 - a0) * 30))
+        pts = [(cx, cy)]
+        for s in range(steps + 1):
+            a = a0 + (a1 - a0) * s / steps
+            r = _ray_polygon_distance(poly, cx, cy, a)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+        wedge = Polygon(pts)
+        clipped = wedge.intersection(poly)
+        if clipped.is_empty:
+            zones.append(None)
+            continue
+        if clipped.geom_type == "MultiPolygon":
+            clipped = max(clipped.geoms, key=lambda g: g.area)
+        zones.append(clipped if clipped.geom_type == "Polygon" else None)
+
+    return zones
+
+
+def _split_strip(poly: Polygon, n_parts: int):
+    """
+    Equal-area strips parallel to the longest edge of the polygon.
+    """
+    coords = list(poly.exterior.coords)[:-1]
+    best_len = 0.0
+    best_dir = (1.0, 0.0)
+    for i in range(len(coords)):
+        x1, y1 = coords[i]
+        x2, y2 = coords[(i + 1) % len(coords)]
+        dx, dy = x2 - x1, y2 - y1
+        L = math.hypot(dx, dy)
+        if L > best_len:
+            best_len = L
+            best_dir = (dx / L, dy / L)
+
+    ux, uy = best_dir
+    # fall direction for _split_by_direction is perpendicular to strips
+    fall_ux, fall_uy = -uy, ux
+
+    return _split_by_direction(poly, n_parts, fall_ux, fall_uy)
+
+
+def _split_by_direction(poly: Polygon, n_parts: int,
+                        fall_ux: float, fall_uy: float):
+    """
+    Cut the polygon into n equal-area bands perpendicular to
+    (fall_ux, fall_uy). Returns a list of shapely Polygons.
+    """
+    theta = -math.pi / 2 - math.atan2(fall_uy, fall_ux)
+    c, s = math.cos(theta), math.sin(theta)
+
+    def rot(p):
+        return (c * p[0] - s * p[1], s * p[0] + c * p[1])
+
+    def rot_inv(p):
+        return (c * p[0] + s * p[1], -s * p[0] + c * p[1])
+
+    rot_poly = Polygon([rot(p) for p in poly.exterior.coords])
+    if not rot_poly.is_valid:
+        rot_poly = rot_poly.buffer(0)
+    if rot_poly.geom_type == "MultiPolygon":
+        rot_poly = max(rot_poly.geoms, key=lambda g: g.area)
+
+    minx, miny, maxx, maxy = rot_poly.bounds
+    target = rot_poly.area / n_parts
+
+    def area_below(ycut):
+        box = Polygon([(minx - 50, miny - 50),
+                       (maxx + 50, miny - 50),
+                       (maxx + 50, ycut),
+                       (minx - 50, ycut)])
+        return rot_poly.intersection(box).area
+
+    cuts = []
+    for k in range(1, n_parts):
+        lo, hi = miny, maxy
+        want = target * k
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if area_below(mid) < want:
+                lo = mid
+            else:
+                hi = mid
+        cuts.append((lo + hi) / 2)
+    cuts.sort()
+
+    edges = [miny - 50] + cuts + [maxy + 50]
+    zones = []
+    for j in range(n_parts):
+        y_lo = edges[n_parts - j - 1]
+        y_hi = edges[n_parts - j]
+        box = Polygon([(minx - 50, y_lo), (maxx + 50, y_lo),
+                       (maxx + 50, y_hi), (minx - 50, y_hi)])
+        zone = rot_poly.intersection(box)
+        if zone.is_empty:
+            zones.append(None)
+            continue
+        if zone.geom_type == "MultiPolygon":
+            zone = max(zone.geoms, key=lambda g: g.area)
+        if zone.geom_type != "Polygon":
+            zones.append(None)
+            continue
+        back = [rot_inv(p) for p in zone.exterior.coords]
+        zones.append(Polygon(back))
+    return zones
+
+
+def _ray_polygon_distance(poly: Polygon, cx: float, cy: float, ang: float) -> float:
+    """Distance from (cx,cy) to the polygon boundary along direction `ang`."""
+    maxR = 100000.0
+    far = (cx + maxR * math.cos(ang), cy + maxR * math.sin(ang))
+    ray = LineString([(cx, cy), far])
+    inter = poly.exterior.intersection(ray)
+    if inter.is_empty:
+        return 0.0
+    if inter.geom_type == "Point":
+        return math.hypot(inter.x - cx, inter.y - cy)
+    if inter.geom_type == "MultiPoint":
+        pts = [(p.x, p.y) for p in inter.geoms]
+    else:
+        # LineString — take its end
+        pts = list(inter.coords)
+    return max(math.hypot(x - cx, y - cy) for x, y in pts)
 
 # ---------------------------------------------------------------- valves
 @bp.route("/valves", methods=["GET", "POST"])
@@ -237,3 +498,39 @@ def _build_valves(project_id: str) -> None:
              "location": {"type": "Point", "coordinates": [lon, lat]},
              "diameter_mm": 32, "revision_id": revision,
              "created_at": now, "updated_at": now})
+
+@bp.route("/zones/build", methods=["POST"])
+@validate_form(ZoneBuild)
+def build_zones_api(data: ZoneBuild):
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+
+    count = _do_build_zones(pid, data.n_parts, data.offset, data.split_mode)
+
+    return jsonify({
+        "ok": True,
+        "zones": count,
+        "n_parts": data.n_parts,
+        "offset": data.offset,
+        "split_mode": data.split_mode,
+    })
+
+
+@bp.route("/tasks/<task_id>")
+def task_status(task_id: str):
+    """Get status of an async task."""
+    status = get_task_status(task_id)
+    if not status:
+        return jsonify({"ok": False, "error": "Task not found"}), 404
+    return jsonify({"ok": True, "task": status})
+
+
+@bp.route("/tasks")
+def project_tasks():
+    """Get all tasks for current project."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+    tasks = get_project_tasks(pid)
+    return jsonify({"ok": True, "tasks": tasks})

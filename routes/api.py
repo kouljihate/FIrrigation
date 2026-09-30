@@ -6,7 +6,7 @@ from db import queries
 from db.connection import get_db
 
 
-bp = Blueprint("api", __name__)
+bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
 
 @bp.route("/summary")
@@ -57,3 +57,29 @@ def bounds():
     return jsonify({
         "bounds": [[min(lats), min(lons)], [max(lats), max(lons)]]
     })
+
+@bp.route("/zones")
+def zones():
+    """Return only zones as a FeatureCollection (used after zone rebuild)."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    db = get_db()
+    features = []
+    for d in db.zones.find({"project_id": pid}):
+        geom = d.get("geom")
+        if not geom:
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {
+                "name":       d.get("name"),
+                "sector":     d.get("sector_code"),
+                "zone_index": d.get("zone_index"),
+                "area_m2":    d.get("area_m2", 0),
+                "collection": "zones",
+            },
+            "geometry": geom,
+        })
+    return jsonify({"type": "FeatureCollection", "features": features})

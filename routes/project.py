@@ -10,6 +10,7 @@ from flask import (
 )
 
 from core import kml_io
+from core.validation import validate_form, BasinCreate, NewProject
 from db import repository, queries
 from db.connection import get_db
 
@@ -20,10 +21,21 @@ bp = Blueprint("project", __name__)
 # ---------------------------------------------------------------- overview
 @bp.route("/overview")
 def index():
-    pid = session.get("project_id", "farm_v1")
-    summary = queries.project_summary(pid)
-    return render_template("index.html", summary=summary)
+    pid = session.get("project_id", "")
+    if not pid:
+        return redirect(url_for("home.home"))
 
+    summary = queries.project_summary(pid)
+
+    # has_data is True if any entity exists for this project
+    db = get_db()
+    has_data = any(
+        db[coll].find_one({"project_id": pid}, {"_id": 1}) is not None
+        for coll in ("property", "sectors", "zones", "valves",
+                     "pipes", "rows", "trees", "driplines", "manifolds")
+    )
+
+    return render_template("index.html", summary=summary, has_data=has_data)
 
 # ---------------------------------------------------------------- initialize
 @bp.route("/project/initial", methods=["GET", "POST"])
@@ -80,7 +92,7 @@ def _import_project(project_id: str, kml_path: str, source_name: str) -> None:
                  "revision_id": revision, "created_at": now, "updated_at": now})
             counts["property"] += 1
 
-        elif kind == "point" and ("eau" in name.lower() or "water" in name.lower()):
+        elif kind == "point" and ("eau" in name.lower() or "water" in name.lower() or "well" in name.lower()):
             lon, lat, ele = coords[0]
             repository.upsert("water_points",
                 {"project_id": project_id, "name": name},
@@ -125,24 +137,18 @@ def _import_project(project_id: str, kml_path: str, source_name: str) -> None:
 
 # ---------------------------------------------------------------- water & basin
 @bp.route("/project/water", methods=["GET", "POST"])
-def water():
+@validate_form(BasinCreate)
+def water(data: BasinCreate | None = None):
     pid = session.get("project_id", "farm_v1")
     db = get_db()
 
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        try:
-            lon = float(request.form.get("lon", 0))
-            lat = float(request.form.get("lat", 0))
-            elev = float(request.form.get("elev", 0))
-            size = float(request.form.get("size", 30))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("project.water"))
-
-        if not name:
-            flash("Basin name is required.", "error")
-            return redirect(url_for("project.water"))
+        assert data is not None
+        name = data.name
+        lon = data.lon
+        lat = data.lat
+        elev = data.elev
+        size = data.size
 
         dlon = size / 111000.0
         dlat = size / 111000.0
@@ -200,3 +206,9 @@ def set_project():
     if pid:
         session["project_id"] = pid
     return redirect(request.referrer or url_for("project.overview"))
+
+@bp.route("/close")
+def close_project():
+    session.pop("project_id", None)
+    flash("Project closed. / تم إغلاق المشروع.", "success")
+    return redirect(url_for("home.home"))

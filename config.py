@@ -3,13 +3,53 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, ValidationError
 
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+
+
+class MongoDBConfig(BaseModel):
+    host: str = "localhost"
+    port: int = Field(default=27017, ge=1, le=65535)
+    database: str = "farm_irrigation"
+    username: str | None = None
+    password: str | None = None
+    auth_source: str = "admin"
+
+
+class PathsConfig(BaseModel):
+    imports: str = "imports"
+    exports: str = "exports"
+    configs: str = "configs"
+
+
+class AppConfig(BaseModel):
+    title: str = "Farm Irrigation Workbench"
+    version: str = "1.0.0"
+    layout: str = "wide"
+
+
+class DefaultsConfig(BaseModel):
+    project_name: str = "farm_v1"
+    row_spacing_m: float = Field(default=4.0, gt=0)
+    tree_spacing_m: float = Field(default=4.0, gt=0)
+    first_row_offset_m: float = Field(default=2.0, ge=0)
+    pipe_main_diameter_mm: int = Field(default=75, gt=0)
+    pipe_submain_diameter_mm: int = Field(default=32, gt=0)
+    pipe_zone_diameter_mm: int = Field(default=32, gt=0)
+
+
+class RootConfig(BaseModel):
+    app: AppConfig = Field(default_factory=AppConfig)
+    mongodb: MongoDBConfig = Field(default_factory=MongoDBConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
+    defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
 
 
 def _load_yaml() -> dict:
@@ -20,7 +60,17 @@ def _load_yaml() -> dict:
         return yaml.safe_load(f) or {}
 
 
-_yaml = _load_yaml()
+def _validate_config(raw: dict) -> RootConfig:
+    try:
+        return RootConfig(**raw)
+    except ValidationError as e:
+        errors = "; ".join(f"{'.'.join(str(x) for x in err['loc'])}: {err['msg']}" for err in e.errors())
+        raise RuntimeError(f"Invalid config.yaml: {errors}") from e
+
+
+_raw = _load_yaml()
+_config = _validate_config(_raw)
+_yaml = _config.model_dump()
 
 
 class Config:
@@ -49,7 +99,7 @@ class Config:
 
     # App
     APP_TITLE   = _yaml.get("app", {}).get("title", "Farm Irrigation Workbench")
-    APP_VERSION = _yaml.get("app", {}).get("version", "0.1.0")
+    APP_VERSION = _yaml.get("app", {}).get("version", "1.0.0")
 
     # Defaults
     DEFAULTS = _yaml.get("defaults", {})

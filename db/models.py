@@ -5,6 +5,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Any
 
+from flask_login import UserMixin
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -100,3 +102,16 @@ class BOMItem(BaseDoc):
     quantity: float = 0.0
     unit_price: float = 0.0
     total_price: float = 0.0
+
+
+@dataclass
+class User(BaseDoc, UserMixin):
+    """User model for authentication."""
+    username: str = ""
+    email: str = ""
+    password_hash: str = ""
+    role: str = "user"  # "admin", "user"
+    active: bool = True
+
+    def get_id(self) -> str:
+        return str(self.name)  # username as ID

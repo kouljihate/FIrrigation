@@ -13,6 +13,7 @@ from shapely.geometry import Polygon
 from core.geometry import clean_polygon, inward_offset
 from core.piping import direct_or_detour
 from core.valve_rules import MV_OF_SECTOR
+from core.validation import validate_form, MainlineBuild, SubmainBuild
 from db import queries, repository
 from db.connection import get_db
 
@@ -39,17 +40,13 @@ def _projection(ring):
 
 # ---------------------------------------------------------------- mainline
 @bp.route("/mainline", methods=["GET", "POST"])
-def mainline():
+@validate_form(MainlineBuild)
+def mainline(data: MainlineBuild | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            offset = float(request.form.get("offset", 5))
-            diameter = int(request.form.get("diameter", 75))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("hydrology.mainline"))
-        _build_mainline(pid, offset, diameter)
+        assert data is not None
+        _build_mainline(pid, data.offset, data.diameter)
         flash("Mainline built.", "success")
         return redirect(url_for("hydrology.mainline"))
 
@@ -110,17 +107,13 @@ def _build_mainline(project_id: str, offset: float, diameter: int) -> None:
 
 # ---------------------------------------------------------------- sub-mains
 @bp.route("/submains", methods=["GET", "POST"])
-def submains():
+@validate_form(SubmainBuild)
+def submains(data: SubmainBuild | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            offset = float(request.form.get("offset", 5))
-            diameter = int(request.form.get("diameter", 32))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("hydrology.submains"))
-        _build_submains(pid, offset, diameter)
+        assert data is not None
+        _build_submains(pid, data.offset, data.diameter)
         flash("Sub-mains built.", "success")
         return redirect(url_for("hydrology.submains"))
 

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h4 class="mb-0 bi">
+          <span class="en">Sign In</span>
+          <span class="ar">تسجيل الدخول</span>
+        </h4>
+      </div>
+      <div class="card-body p-4">
+        <form method="post" novalidate>
+          <div class="mb-3">
+            <label for="username" class="form-label bi">
+              <span class="en">Username</span>
+              <span class="ar">اسم المستخدم</span>
+            </label>
+            <input type="text" class="form-control" id="username" name="username"
+                   autocomplete="username" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label bi">
+              <span class="en">Password</span>
+              <span class="ar">كلمة المرور</span>
+            </label>
+            <input type="password" class="form-control" id="password" name="password"
+                   autocomplete="current-password" required>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary btn-stack">
+              <span class="ar">دخول</span>
+              <span class="en">Sign In</span>
+            </button>
+          </div>
+        </form>
+        <div class="text-center mt-3">
+          <small class="text-muted bi">
+            <span class="en">Don't have an account?</span>
+            <span class="ar">ليس لديك حساب؟</span>
+            <a href="{{ url_for('auth.register') }}" class="ms-1">
+              <span class="en">Register</span>
+              <span class="ar">سجل الآن</span>
+            </a>
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

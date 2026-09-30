@@ -10,6 +10,7 @@ from flask import (
 )
 
 from core import kml_io
+from core.validation import validate_form, NewProject
 from db import repository
 from db.connection import get_db
 
@@ -26,12 +27,10 @@ def home():
 
 
 @bp.route("/new", methods=["POST"])
-def new_project():
+@validate_form(NewProject)
+def new_project(data: NewProject):
     """Create a new project (empty). User then uploads a KML in /project/initial."""
-    pid = request.form.get("project_id", "").strip()
-    if not pid:
-        flash("Project ID is required / مطلوب معرف المشروع", "error")
-        return redirect(url_for("home.home"))
+    pid = data.project_id
 
     db = get_db()
     exists = db.projects.find_one({"project_id": pid})

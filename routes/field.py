@@ -14,6 +14,7 @@ from core.driplines import dripline_from_row
 from core.geometry import clean_polygon, fall_direction
 from core.rows import build_rows
 from core.trees import place_trees_on_row
+from core.validation import validate_form, RowBuild, TreePlace, DriplineBuild
 from db import queries, repository
 
 
@@ -39,17 +40,13 @@ def _projection(ring):
 
 # ---------------------------------------------------------------- rows
 @bp.route("/rows", methods=["GET", "POST"])
-def rows():
+@validate_form(RowBuild)
+def rows(data: RowBuild | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            spacing = float(request.form.get("spacing", 4))
-            offset = float(request.form.get("offset", 2))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("field.rows"))
-        _build_rows(pid, spacing, offset)
+        assert data is not None
+        _build_rows(pid, data.spacing, data.offset)
         flash("Rows built.", "success")
         return redirect(url_for("field.rows"))
 
@@ -98,17 +95,13 @@ def _build_rows(project_id: str, spacing: float, offset: float) -> None:
 
 # ---------------------------------------------------------------- trees
 @bp.route("/trees", methods=["GET", "POST"])
-def trees():
+@validate_form(TreePlace)
+def trees(data: TreePlace | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            spacing = float(request.form.get("spacing", 4))
-            fig_pct = int(request.form.get("fig_pct", 20))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("field.trees"))
-        _place_trees(pid, spacing, fig_pct)
+        assert data is not None
+        _place_trees(pid, data.spacing, data.fig_pct)
         flash("Trees placed.", "success")
         return redirect(url_for("field.trees"))
 
@@ -153,16 +146,13 @@ def _place_trees(project_id: str, spacing: float, fig_pct: int) -> None:
 
 # ---------------------------------------------------------------- driplines
 @bp.route("/driplines", methods=["GET", "POST"])
-def driplines():
+@validate_form(DriplineBuild)
+def driplines(data: DriplineBuild | None = None):
     pid = session.get("project_id", "farm_v1")
 
     if request.method == "POST":
-        try:
-            emitter_spacing = float(request.form.get("emitter_spacing", 0.5))
-        except ValueError:
-            flash("Invalid numeric input.", "error")
-            return redirect(url_for("field.driplines"))
-        _build_driplines(pid, emitter_spacing)
+        assert data is not None
+        _build_driplines(pid, data.emitter_spacing)
         flash("Driplines built.", "success")
         return redirect(url_for("field.driplines"))
 
